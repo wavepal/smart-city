@@ -1,8 +1,5 @@
-package tests;
-
 import connectivity.*;
 import dsu.DisjointSetUnion;
-import graph.Edge;
 import graph.Graph;
 import graph.GraphGenerator;
 import mst.KruskalMST;

@@ -365,7 +365,7 @@ java -cp out Main
 
 ### Run Tests Only
 ```bash
-java -cp out tests.TestSuite
+java -cp out TestSuite
 ```
 
 ### Regenerate Plots
