@@ -6,21 +6,22 @@ import graph.Graph;
 import java.util.*;
 
 public class TopologicalSort {
+    private final List<Integer> order = new ArrayList<>();
+    private final boolean hasCycle;
+    private long vertexVisits = 0;
+    private long edgeExaminations = 0;
+    private long executionTimeNs = 0;
 
-    /**
-     * Finds a topological ordering using Kahn's algorithm.
-     */
-    public static TopologicalSortResult sort(Graph graph) {
+    public TopologicalSort(Graph graph) {
         int V = graph.getNumVertices();
         if (V == 0) {
-            return new TopologicalSortResult(false, Collections.emptyList(), 0, 0, 0);
+            this.hasCycle = false;
+            return;
         }
 
         long startTime = System.nanoTime();
 
         int[] inDegree = new int[V];
-        long edgeExaminations = 0;
-        long vertexVisits = 0;
 
         // Compute indegrees of all vertices
         for (int u = 0; u < V; u++) {
@@ -37,8 +38,6 @@ public class TopologicalSort {
                 queue.add(i);
             }
         }
-
-        List<Integer> order = new ArrayList<>(V);
 
         while (!queue.isEmpty()) {
             int u = queue.poll();
@@ -57,22 +56,45 @@ public class TopologicalSort {
         }
 
         long endTime = System.nanoTime();
-
-        // If processed vertices count is less than V, there is a cycle
-        boolean hasCycle = (order.size() < V);
-
-        return new TopologicalSortResult(
-                hasCycle,
-                hasCycle ? Collections.emptyList() : order,
-                endTime - startTime,
-                vertexVisits,
-                edgeExaminations
-        );
+        this.executionTimeNs = endTime - startTime;
+        this.hasCycle = (order.size() < V);
+        if (this.hasCycle) {
+            order.clear();
+        }
     }
 
-    /**
-     * Checks if a given ordering is a valid topological ordering of the graph.
-     */
+    public boolean hasCycle() {
+        return hasCycle;
+    }
+
+    public boolean isDAG() {
+        return !hasCycle;
+    }
+
+    public List<Integer> getOrder() {
+        return Collections.unmodifiableList(order);
+    }
+
+    public long getVertexVisits() {
+        return vertexVisits;
+    }
+
+    public long getEdgeExaminations() {
+        return edgeExaminations;
+    }
+
+    public long getTotalOperations() {
+        return vertexVisits + edgeExaminations;
+    }
+
+    public long getExecutionTimeNs() {
+        return executionTimeNs;
+    }
+
+    public double getExecutionTimeMs() {
+        return executionTimeNs / 1_000_000.0;
+    }
+
     public static boolean isValidOrder(Graph graph, List<Integer> order) {
         if (order.size() != graph.getNumVertices()) {
             return false;
@@ -86,7 +108,6 @@ public class TopologicalSort {
         for (int u = 0; u < graph.getNumVertices(); u++) {
             for (Edge edge : graph.getIncidentEdges(u)) {
                 int v = edge.getTo();
-                // In valid topological order, u must appear before v
                 if (position[u] >= position[v]) {
                     return false;
                 }
