@@ -6,6 +6,14 @@ import graph.Graph;
 import java.util.*;
 
 public class Dijkstra {
+    private final int source;
+    private final double[] dist;
+    private final int[] parent;
+
+    private long edgeRelaxations = 0;
+    private long pqOperations = 0;
+    private long comparisons = 0;
+    private long executionTimeNs = 0;
 
     public static class NodeEntry implements Comparable<NodeEntry> {
         final int vertex;
@@ -22,26 +30,22 @@ public class Dijkstra {
         }
     }
 
-    public static ShortestPathResult findShortestPaths(Graph graph, int source) {
+    public Dijkstra(Graph graph, int source) {
         int V = graph.getNumVertices();
         if (source < 0 || source >= V) {
-            throw new IndexOutOfBoundsException("Source vertex " + source + " is out of bounds [0, " + (V - 1) + "]");
+            throw new IndexOutOfBoundsException("Source vertex " + source + " is out of bounds");
         }
 
-        long startTime = System.nanoTime();
-
-        double[] dist = new double[V];
-        int[] parent = new int[V];
-        boolean[] visited = new boolean[V];
+        this.source = source;
+        this.dist = new double[V];
+        this.parent = new int[V];
         Arrays.fill(dist, Double.POSITIVE_INFINITY);
         Arrays.fill(parent, -1);
 
-        long[] comparisons = new long[1];
-        long edgeRelaxations = 0;
-        long pqOperations = 0;
+        long startTime = System.nanoTime();
 
         PriorityQueue<NodeEntry> pq = new PriorityQueue<>((a, b) -> {
-            comparisons[0]++;
+            comparisons++;
             return Double.compare(a.distance, b.distance);
         });
 
@@ -55,18 +59,15 @@ public class Dijkstra {
             pqOperations++;
             int u = curr.vertex;
 
-            // Skip if vertex was already processed
-            if (visited[u]) {
+            // Skip if we already found a shorter path to u
+            if (curr.distance > dist[u]) {
                 continue;
             }
-            visited[u] = true;
 
             // Relax outgoing edges
             for (Edge edge : graph.getIncidentEdges(u)) {
                 if (edge.getWeight() < 0) {
-                    throw new IllegalArgumentException(
-                            "Negative edge weight (" + edge.getWeight() + ") found! Dijkstra requires non-negative weights."
-                    );
+                    throw new IllegalArgumentException("Dijkstra does not support negative weights: " + edge.getWeight());
                 }
 
                 int v = edge.getTo();
@@ -83,15 +84,55 @@ public class Dijkstra {
         }
 
         long endTime = System.nanoTime();
+        this.executionTimeNs = endTime - startTime;
+    }
 
-        return new ShortestPathResult(
-                source,
-                dist,
-                parent,
-                endTime - startTime,
-                edgeRelaxations,
-                pqOperations,
-                comparisons[0]
-        );
+    public int getSource() {
+        return source;
+    }
+
+    public double getDistance(int target) {
+        return dist[target];
+    }
+
+    public boolean hasPath(int target) {
+        return dist[target] != Double.POSITIVE_INFINITY;
+    }
+
+    public List<Integer> getPath(int target) {
+        if (!hasPath(target)) {
+            return Collections.emptyList();
+        }
+
+        List<Integer> path = new ArrayList<>();
+        for (int at = target; at != -1; at = parent[at]) {
+            path.add(at);
+        }
+        Collections.reverse(path);
+        return path;
+    }
+
+    public long getEdgeRelaxations() {
+        return edgeRelaxations;
+    }
+
+    public long getPqOperations() {
+        return pqOperations;
+    }
+
+    public long getComparisons() {
+        return comparisons;
+    }
+
+    public long getTotalOperations() {
+        return edgeRelaxations + pqOperations + comparisons;
+    }
+
+    public long getExecutionTimeNs() {
+        return executionTimeNs;
+    }
+
+    public double getExecutionTimeMs() {
+        return executionTimeNs / 1_000_000.0;
     }
 }
