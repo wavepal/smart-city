@@ -1,4 +1,4 @@
 GraphSize,V,E,Algorithm,AvgTimeMs,AvgRelaxations,AvgPqOps,AvgComparisons,AvgTotalOps
-Small,10,30,Dijkstra,0.01426,60,27,53,140
-Medium,100,500,Dijkstra,0.16620,1000,392,2292,3684
-Large,1000,5000,Dijkstra,1.97788,10000,3926,36137,50063
+Small,10,30,Dijkstra,0.01666,60,27,53,140
+Medium,100,500,Dijkstra,0.16260,1000,392,2292,3684
+Large,1000,5000,Dijkstra,1.95826,10000,3926,36137,50063

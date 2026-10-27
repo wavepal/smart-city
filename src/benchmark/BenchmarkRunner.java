@@ -1,21 +1,18 @@
 package benchmark;
 
-import connectivity.*;
-import dsu.DisjointSetUnion;
+import connectivity.KosarajuSCC;
+import connectivity.TopologicalSort;
 import graph.Graph;
 import graph.GraphGenerator;
 import mst.KruskalMST;
-import mst.MSTResult;
 import mst.PrimMST;
 import shortestpath.Dijkstra;
-import shortestpath.ShortestPathResult;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Locale;
 
 public class BenchmarkRunner {
 
@@ -52,7 +49,7 @@ public class BenchmarkRunner {
                 new Config("Large", 1000, 5000)
         };
 
-        // Warm up the JVM to stabilize JIT optimization
+        // Warm up JVM to avoid JIT spikes
         warmup();
 
         runMSTBenchmark(configs);
@@ -68,13 +65,13 @@ public class BenchmarkRunner {
         System.out.print("Warming up JVM... ");
         for (int i = 0; i < 50; i++) {
             Graph g = GraphGenerator.generateConnectedUndirectedGraph(50, 150, 999L + i, 1.0, 100.0);
-            KruskalMST.findMST(g);
-            PrimMST.findMST(g);
+            new KruskalMST(g);
+            new PrimMST(g);
             Graph dag = GraphGenerator.generateDAG(50, 150, 999L + i, 1.0, 100.0);
-            TopologicalSort.sort(dag);
+            new TopologicalSort(dag);
             Graph cyclic = GraphGenerator.generateDirectedGraphWithCycles(50, 150, 999L + i, 1.0, 100.0);
-            TarjanSCC.findSCC(cyclic);
-            Dijkstra.findShortestPaths(cyclic, 0);
+            new KosarajuSCC(cyclic);
+            new Dijkstra(cyclic, 0);
         }
         System.out.println("Done.");
     }
@@ -95,20 +92,20 @@ public class BenchmarkRunner {
 
                 for (int r = 0; r < REPEATS; r++) {
                     Graph g = GraphGenerator.generateConnectedUndirectedGraph(cfg.V, cfg.E, FIXED_SEED + r, 1.0, 100.0);
-                    MSTResult k = KruskalMST.findMST(g);
-                    MSTResult p = PrimMST.findMST(g);
+                    KruskalMST k = new KruskalMST(g);
+                    PrimMST p = new PrimMST(g);
 
                     totalKruskalTime += k.getExecutionTimeMs();
                     totalKruskalEdges += k.getEdgeExaminations();
                     totalKruskalComp += k.getComparisons();
-                    totalKruskalAux += k.getAuxiliaryOperations();
+                    totalKruskalAux += k.getDsuOperations();
                     totalKruskalTotalOps += k.getTotalOperations();
                     kWeight = k.getTotalWeight();
 
                     totalPrimTime += p.getExecutionTimeMs();
                     totalPrimEdges += p.getEdgeExaminations();
                     totalPrimComp += p.getComparisons();
-                    totalPrimAux += p.getAuxiliaryOperations();
+                    totalPrimAux += p.getPqOperations();
                     totalPrimTotalOps += p.getTotalOperations();
                     pWeight = p.getTotalWeight();
                 }
@@ -125,9 +122,9 @@ public class BenchmarkRunner {
                 long avgPAux = totalPrimAux / REPEATS;
                 long avgPTotalOps = totalPrimTotalOps / REPEATS;
 
-                pw.printf(java.util.Locale.US, "%s,%d,%d,Kruskal,%.5f,%d,%d,%d,%d,%.2f%n",
+                pw.printf(Locale.US, "%s,%d,%d,Kruskal,%.5f,%d,%d,%d,%d,%.2f%n",
                         cfg.name, cfg.V, cfg.E, avgKTime, avgKEdges, avgKComp, avgKAux, avgKTotalOps, kWeight);
-                pw.printf(java.util.Locale.US, "%s,%d,%d,Prim,%.5f,%d,%d,%d,%d,%.2f%n",
+                pw.printf(Locale.US, "%s,%d,%d,Prim,%.5f,%d,%d,%d,%d,%.2f%n",
                         cfg.name, cfg.V, cfg.E, avgPTime, avgPEdges, avgPComp, avgPAux, avgPTotalOps, pWeight);
 
                 System.out.printf("[%s: V=%d, E=%d]%n", cfg.name, cfg.V, cfg.E);
@@ -153,14 +150,14 @@ public class BenchmarkRunner {
                     Graph g = GraphGenerator.generateConnectedUndirectedGraph(cfg.V, cfg.E, FIXED_SEED + r, 1.0, 100.0);
 
                     // Optimized: Path Compression + Union by Rank
-                    MSTResult optRes = KruskalMST.findMST(g, true, true);
+                    KruskalMST optRes = new KruskalMST(g, true, true);
                     optTime += optRes.getExecutionTimeMs();
-                    optOps += optRes.getAuxiliaryOperations();
+                    optOps += optRes.getDsuOperations();
 
                     // Naive: No Path Compression, No Union by Rank
-                    MSTResult naiveRes = KruskalMST.findMST(g, false, false);
+                    KruskalMST naiveRes = new KruskalMST(g, false, false);
                     naiveTime += naiveRes.getExecutionTimeMs();
-                    naiveOps += naiveRes.getAuxiliaryOperations();
+                    naiveOps += naiveRes.getDsuOperations();
                 }
 
                 double avgOptTime = optTime / REPEATS;
@@ -168,9 +165,9 @@ public class BenchmarkRunner {
                 long avgOptOps = optOps / REPEATS;
                 long avgNaiveOps = naiveOps / REPEATS;
 
-                pw.printf(java.util.Locale.US, "%s,%d,%d,Optimized(PathComp+Rank),%.5f,%d%n",
+                pw.printf(Locale.US, "%s,%d,%d,Optimized(PathComp+Rank),%.5f,%d%n",
                         cfg.name, cfg.V, cfg.E, avgOptTime, avgOptOps);
-                pw.printf(java.util.Locale.US, "%s,%d,%d,Naive(NoPathComp+NoRank),%.5f,%d%n",
+                pw.printf(Locale.US, "%s,%d,%d,Naive(NoPathComp+NoRank),%.5f,%d%n",
                         cfg.name, cfg.V, cfg.E, avgNaiveTime, avgNaiveOps);
 
                 System.out.printf("[%s: V=%d, E=%d]%n", cfg.name, cfg.V, cfg.E);
@@ -195,7 +192,7 @@ public class BenchmarkRunner {
                 long dagVisits = 0, dagEdges = 0;
                 for (int r = 0; r < REPEATS; r++) {
                     Graph dag = GraphGenerator.generateDAG(cfg.V, cfg.E, FIXED_SEED + r, 1.0, 100.0);
-                    TopologicalSortResult res = TopologicalSort.sort(dag);
+                    TopologicalSort res = new TopologicalSort(dag);
                     dagTime += res.getExecutionTimeMs();
                     dagVisits += res.getVertexVisits();
                     dagEdges += res.getEdgeExaminations();
@@ -204,7 +201,7 @@ public class BenchmarkRunner {
                 long avgDagVisits = dagVisits / REPEATS;
                 long avgDagEdges = dagEdges / REPEATS;
 
-                pw.printf(java.util.Locale.US, "%s,%d,%d,DAG,true,%.5f,%d,%d,%d%n",
+                pw.printf(Locale.US, "%s,%d,%d,DAG,true,%.5f,%d,%d,%d%n",
                         cfg.name, cfg.V, cfg.E, avgDagTime, avgDagVisits, avgDagEdges, avgDagVisits + avgDagEdges);
 
                 // Test Cyclic
@@ -212,7 +209,7 @@ public class BenchmarkRunner {
                 long cycleVisits = 0, cycleEdges = 0;
                 for (int r = 0; r < REPEATS; r++) {
                     Graph cyclic = GraphGenerator.generateDirectedGraphWithCycles(cfg.V, cfg.E, FIXED_SEED + r, 1.0, 100.0);
-                    TopologicalSortResult res = TopologicalSort.sort(cyclic);
+                    TopologicalSort res = new TopologicalSort(cyclic);
                     cycleTime += res.getExecutionTimeMs();
                     cycleVisits += res.getVertexVisits();
                     cycleEdges += res.getEdgeExaminations();
@@ -221,7 +218,7 @@ public class BenchmarkRunner {
                 long avgCycleVisits = cycleVisits / REPEATS;
                 long avgCycleEdges = cycleEdges / REPEATS;
 
-                pw.printf(java.util.Locale.US, "%s,%d,%d,Cyclic,false,%.5f,%d,%d,%d%n",
+                pw.printf(Locale.US, "%s,%d,%d,Cyclic,false,%.5f,%d,%d,%d%n",
                         cfg.name, cfg.V, cfg.E, avgCycleTime, avgCycleVisits, avgCycleEdges, avgCycleVisits + avgCycleEdges);
 
                 System.out.printf("[%s: V=%d, E=%d]%n", cfg.name, cfg.V, cfg.E);
@@ -234,7 +231,7 @@ public class BenchmarkRunner {
     }
 
     private static void runSCCBenchmark(Config[] configs) {
-        System.out.println("\n=== SCC Benchmark: Tarjan's Algorithm ===");
+        System.out.println("\n=== SCC Benchmark: Kosaraju's Algorithm ===");
         String csvPath = "results/tables/scc_benchmark.csv";
         try (PrintWriter pw = new PrintWriter(new FileWriter(csvPath))) {
             pw.println("GraphSize,V,E,Algorithm,AvgTimeMs,AvgDfsVisits,AvgEdgeExams,AvgTotalOps,AvgComponentCount");
@@ -247,7 +244,7 @@ public class BenchmarkRunner {
 
                 for (int r = 0; r < REPEATS; r++) {
                     Graph cyclic = GraphGenerator.generateDirectedGraphWithCycles(cfg.V, cfg.E, FIXED_SEED + r, 1.0, 100.0);
-                    SCCResult res = TarjanSCC.findSCC(cyclic);
+                    KosarajuSCC res = new KosarajuSCC(cyclic);
                     totalTime += res.getExecutionTimeMs();
                     totalVisits += res.getDfsVisits();
                     totalEdges += res.getEdgeExaminations();
@@ -259,11 +256,11 @@ public class BenchmarkRunner {
                 long avgEdges = totalEdges / REPEATS;
                 double avgComps = (double) totalComponents / REPEATS;
 
-                pw.printf(java.util.Locale.US, "%s,%d,%d,TarjanSCC,%.5f,%d,%d,%d,%.1f%n",
+                pw.printf(Locale.US, "%s,%d,%d,KosarajuSCC,%.5f,%d,%d,%d,%.1f%n",
                         cfg.name, cfg.V, cfg.E, avgTime, avgVisits, avgEdges, avgVisits + avgEdges, avgComps);
 
                 System.out.printf("[%s: V=%d, E=%d]%n", cfg.name, cfg.V, cfg.E);
-                System.out.printf("  Tarjan SCC: Time = %.4f ms | Ops = %d | Components = %.1f%n",
+                System.out.printf("  Kosaraju SCC: Time = %.4f ms | Ops = %d | Components = %.1f%n",
                         avgTime, avgVisits + avgEdges, avgComps);
             }
         } catch (IOException e) {
@@ -285,7 +282,7 @@ public class BenchmarkRunner {
 
                 for (int r = 0; r < REPEATS; r++) {
                     Graph g = GraphGenerator.generateConnectedUndirectedGraph(cfg.V, cfg.E, FIXED_SEED + r, 1.0, 100.0);
-                    ShortestPathResult res = Dijkstra.findShortestPaths(g, 0);
+                    Dijkstra res = new Dijkstra(g, 0);
                     totalTime += res.getExecutionTimeMs();
                     totalRelax += res.getEdgeRelaxations();
                     totalPq += res.getPqOperations();
@@ -298,7 +295,7 @@ public class BenchmarkRunner {
                 long avgComp = totalComp / REPEATS;
                 long avgTotal = avgRelax + avgPq + avgComp;
 
-                pw.printf(java.util.Locale.US, "%s,%d,%d,Dijkstra,%.5f,%d,%d,%d,%d%n",
+                pw.printf(Locale.US, "%s,%d,%d,Dijkstra,%.5f,%d,%d,%d,%d%n",
                         cfg.name, cfg.V, cfg.E, avgTime, avgRelax, avgPq, avgComp, avgTotal);
 
                 System.out.printf("[%s: V=%d, E=%d]%n", cfg.name, cfg.V, cfg.E);

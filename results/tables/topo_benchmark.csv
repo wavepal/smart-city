@@ -1,7 +1,7 @@
 GraphSize,V,E,GraphType,IsDAG,AvgTimeMs,AvgVertexVisits,AvgEdgeExams,AvgTotalOps
-Small,10,30,DAG,true,0.01028,10,60,70
-Small,10,30,Cyclic,false,0.00444,0,31,31
-Medium,100,500,DAG,true,0.12536,100,1000,1100
-Medium,100,500,Cyclic,false,0.05268,0,505,505
-Large,1000,5000,DAG,true,0.99092,1000,10000,11000
-Large,1000,5000,Cyclic,false,0.17736,6,5028,5034
+Small,10,30,DAG,true,0.00982,10,60,70
+Small,10,30,Cyclic,false,0.00376,0,31,31
+Medium,100,500,DAG,true,0.12110,100,1000,1100
+Medium,100,500,Cyclic,false,0.05306,0,505,505
+Large,1000,5000,DAG,true,0.98432,1000,10000,11000
+Large,1000,5000,Cyclic,false,0.27034,6,5028,5034
