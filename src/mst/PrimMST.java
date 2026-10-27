@@ -9,25 +9,29 @@ import java.util.List;
 import java.util.PriorityQueue;
 
 public class PrimMST {
+    private final List<Edge> mstEdges = new ArrayList<>();
+    private double totalWeight = 0.0;
+    private boolean connected = true;
 
-    public static MSTResult findMST(Graph graph) {
+    // Operation counters
+    private long edgeExaminations = 0;
+    private long comparisons = 0;
+    private long pqOperations = 0;
+    private long executionTimeNs = 0;
+
+    public PrimMST(Graph graph) {
         int V = graph.getNumVertices();
-        if (V == 0) {
-            return new MSTResult("Prim", Collections.emptyList(), 0.0, true, 0, 0, 0, 0);
+        if (V <= 1) {
+            this.connected = true;
+            this.totalWeight = 0.0;
+            return;
         }
 
         long startTime = System.nanoTime();
 
         boolean[] inMST = new boolean[V];
-        List<Edge> mstEdges = new ArrayList<>();
-        double totalWeight = 0.0;
-
-        long[] comparisons = new long[1];
-        long edgeExaminations = 0;
-        long pqOperations = 0;
-
         PriorityQueue<Edge> pq = new PriorityQueue<>((e1, e2) -> {
-            comparisons[0]++;
+            comparisons++;
             return Double.compare(e1.getWeight(), e2.getWeight());
         });
 
@@ -72,19 +76,44 @@ public class PrimMST {
         }
 
         long endTime = System.nanoTime();
+        this.executionTimeNs = endTime - startTime;
+        this.connected = (visitedVertices == V && mstEdges.size() == V - 1);
+        this.totalWeight = Math.round(totalWeight * 100.0) / 100.0;
+    }
 
-        // Check if all vertices are connected
-        boolean isConnected = (V <= 1) || (visitedVertices == V && mstEdges.size() == V - 1);
+    public List<Edge> getEdges() {
+        return Collections.unmodifiableList(mstEdges);
+    }
 
-        return new MSTResult(
-                "Prim",
-                mstEdges,
-                totalWeight,
-                isConnected,
-                endTime - startTime,
-                edgeExaminations,
-                comparisons[0],
-                pqOperations
-        );
+    public double getTotalWeight() {
+        return totalWeight;
+    }
+
+    public boolean isConnected() {
+        return connected;
+    }
+
+    public long getEdgeExaminations() {
+        return edgeExaminations;
+    }
+
+    public long getComparisons() {
+        return comparisons;
+    }
+
+    public long getPqOperations() {
+        return pqOperations;
+    }
+
+    public long getTotalOperations() {
+        return edgeExaminations + comparisons + pqOperations;
+    }
+
+    public long getExecutionTimeNs() {
+        return executionTimeNs;
+    }
+
+    public double getExecutionTimeMs() {
+        return executionTimeNs / 1_000_000.0;
     }
 }

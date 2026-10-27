@@ -9,32 +9,39 @@ import java.util.Collections;
 import java.util.List;
 
 public class KruskalMST {
+    private final List<Edge> mstEdges = new ArrayList<>();
+    private double totalWeight = 0.0;
+    private boolean connected = true;
 
-    public static MSTResult findMST(Graph graph) {
-        return findMST(graph, true, true);
+    // Operation counters
+    private long edgeExaminations = 0;
+    private long comparisons = 0;
+    private long dsuOperations = 0;
+    private long executionTimeNs = 0;
+
+    public KruskalMST(Graph graph) {
+        this(graph, true, true);
     }
 
-    public static MSTResult findMST(Graph graph, boolean usePathCompression, boolean useUnionByRank) {
+    public KruskalMST(Graph graph, boolean usePathCompression, boolean useUnionByRank) {
         int V = graph.getNumVertices();
-        if (V == 0) {
-            return new MSTResult("Kruskal", Collections.emptyList(), 0.0, true, 0, 0, 0, 0);
+        if (V <= 1) {
+            this.connected = true;
+            this.totalWeight = 0.0;
+            return;
         }
 
         long startTime = System.nanoTime();
 
         List<Edge> allEdges = new ArrayList<>(graph.getAllEdges());
-        long[] comparisonCount = new long[1];
 
         // Sort all edges by weight
         allEdges.sort((e1, e2) -> {
-            comparisonCount[0]++;
+            comparisons++;
             return Double.compare(e1.getWeight(), e2.getWeight());
         });
 
         DisjointSetUnion dsu = new DisjointSetUnion(V, usePathCompression, useUnionByRank);
-        List<Edge> mstEdges = new ArrayList<>();
-        double totalWeight = 0.0;
-        long edgeExaminations = 0;
 
         for (Edge edge : allEdges) {
             edgeExaminations++;
@@ -55,20 +62,45 @@ public class KruskalMST {
         }
 
         long endTime = System.nanoTime();
+        this.executionTimeNs = endTime - startTime;
+        this.dsuOperations = dsu.getTotalOperations();
+        this.connected = (mstEdges.size() == V - 1);
+        this.totalWeight = Math.round(totalWeight * 100.0) / 100.0;
+    }
 
-        // Graph is connected if MST has V - 1 edges
-        boolean isConnected = (V <= 1) || (mstEdges.size() == V - 1);
-        long dsuOps = dsu.getTotalOperations();
+    public List<Edge> getEdges() {
+        return Collections.unmodifiableList(mstEdges);
+    }
 
-        return new MSTResult(
-                "Kruskal",
-                mstEdges,
-                totalWeight,
-                isConnected,
-                endTime - startTime,
-                edgeExaminations,
-                comparisonCount[0],
-                dsuOps
-        );
+    public double getTotalWeight() {
+        return totalWeight;
+    }
+
+    public boolean isConnected() {
+        return connected;
+    }
+
+    public long getEdgeExaminations() {
+        return edgeExaminations;
+    }
+
+    public long getComparisons() {
+        return comparisons;
+    }
+
+    public long getDsuOperations() {
+        return dsuOperations;
+    }
+
+    public long getTotalOperations() {
+        return edgeExaminations + comparisons + dsuOperations;
+    }
+
+    public long getExecutionTimeNs() {
+        return executionTimeNs;
+    }
+
+    public double getExecutionTimeMs() {
+        return executionTimeNs / 1_000_000.0;
     }
 }
