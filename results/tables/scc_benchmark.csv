@@ -1,4 +1,4 @@
 GraphSize,V,E,Algorithm,AvgTimeMs,AvgDfsVisits,AvgEdgeExams,AvgTotalOps,AvgComponentCount
-Small,10,30,KosarajuSCC,0.01970,20,60,80,1.6
-Medium,100,500,KosarajuSCC,0.11270,200,1000,1200,2.2
-Large,1000,5000,KosarajuSCC,1.55900,2000,10000,12000,13.6
+Small,10,30,KosarajuSCC,0.01340,20,60,80,1.6
+Medium,100,500,KosarajuSCC,0.11080,200,1000,1200,2.2
+Large,1000,5000,KosarajuSCC,1.48416,2000,10000,12000,13.6
