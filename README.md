@@ -1,31 +1,29 @@
 # Assignment 3: Smart City Infrastructure and Route Planning
 
-Java application for modeling city infrastructure networks using graph algorithms. Basically implements MST algorithms, shortest paths, and connectivity analysis for urban planning problems.
+Java application for modeling city infrastructure networks using graph algorithms. It covers minimum spanning trees, connectivity analysis, and shortest-path route planning for municipal infrastructure networks.
 
 ---
 
 ## 1. Overview
 
-The idea is to model a smart city network as a graph where vertices represent districts or hubs, edges are roads/cables/pipelines, and weights represent costs or distances. Pretty straightforward graph theory application.
+The idea is to represent a smart city network as a graph where vertices represent city districts, utility substations, or transit hubs, and edges represent roads, power lines, or water pipelines.
 
 The graph $G = (V, E)$ consists of:
-* **Vertices:** Districts, substations, hubs etc
-* **Edges:** Roads, transmission lines, cables, pipelines
-* **Weights:** Construction costs (thousands of $) or distances (km/minutes)
+* **Vertices ($V$):** City districts and locations
+* **Edges ($E$):** Roads and infrastructure connections
+* **Weights ($w$):** Road construction costs or travel distances (non-negative)
 
-### What it does
+### Core Tasks
 
-1. **Infrastructure Planning (MST):** Connects all districts with minimum total cost. Uses Kruskal and Prim algorithms.
-2. **Connectivity Analysis:** Checks if the network is properly connected, finds strongly connected components, does topological sorting for dependency chains.
-3. **Route Planning (Dijkstra):** Finds shortest paths from a source to all other locations.
+1. **Infrastructure Planning (MST):** Connect all districts at the minimum total cost without cycles using Kruskal's and Prim's algorithms.
+2. **Connectivity Analysis:** Check if the network is connected, detect cycles, find topological ordering for service dependencies, and identify strongly connected components using Kosaraju's algorithm.
+3. **Route Planning (Dijkstra):** Find shortest paths and distances from a municipal hub to all reachable districts.
 
 ---
 
 ## 2. Implementation Details
 
 ### Project Structure
-
-The repository structure:
 
 ```text
 smart-city/
@@ -39,17 +37,12 @@ smart-city/
 │   ├── dsu/
 │   │   └── DisjointSetUnion.java
 │   ├── mst/
-│   │   ├── MSTResult.java
 │   │   ├── KruskalMST.java
 │   │   └── PrimMST.java
 │   ├── connectivity/
-│   │   ├── TopologicalSortResult.java
 │   │   ├── TopologicalSort.java
-│   │   ├── SCCResult.java
-│   │   ├── TarjanSCC.java
 │   │   └── KosarajuSCC.java
 │   ├── shortestpath/
-│   │   ├── ShortestPathResult.java
 │   │   └── Dijkstra.java
 │   ├── benchmark/
 │   │   └── BenchmarkRunner.java
@@ -73,87 +66,79 @@ smart-city/
     └── generate_plots.py
 ```
 
-### Design Decisions
+### Main Design Decisions
 
 #### Graph Representation (`graph`)
-* **Adjacency Lists:** Uses `List<List<Edge>>` for storing edges. This works well for sparse graphs where $E \ll V^2$, giving us $O(V + E)$ storage which is much better than adjacency matrix's $O(V^2)$.
-* **Graph Generator:** Generates random test graphs with a fixed seed (42) for reproducibility:
-  * *Connected graphs:* First creates a spanning tree to guarantee connectivity, then adds remaining edges randomly
-  * *DAGs:* Only allows edges from lower to higher vertex numbers (u < v) so no cycles possible
-  * *Cyclic graphs:* Arbitrary edges with intentional cycles for SCC testing
+* **Adjacency Lists:** Stored as `List<List<Edge>>`. For city networks which are sparse ($E \ll V^2$), adjacency lists use $O(V + E)$ space, avoiding the $O(V^2)$ overhead of an adjacency matrix.
+* **Undirected Edge Handling:** For undirected graphs, each edge is added to the adjacency list of both endpoints for Prim's algorithm, but the global edge list stores only one instance of each edge so Kruskal's algorithm doesn't sort duplicates.
+* **Graph Generator:** Uses a fixed random seed (42) for reproducible tests:
+  * *Connected graphs:* First builds a random spanning tree over a shuffled vertex array to guarantee connectivity, then adds remaining edges without self-loops or duplicate edges.
+  * *DAGs:* Generates edges $(u, v)$ with $u < v$ to guarantee acyclicity.
+  * *Cyclic graphs:* Adds arbitrary directed edges and explicit cycles for connectivity testing.
 
 #### Disjoint Set Union (`dsu`)
-* **Path Compression:** Makes all visited nodes point directly to root during find operations
-* **Union by Rank:** Attaches shorter tree to taller tree to keep depth low
-* The combination gives us nearly O(1) operations (technically $O(\alpha(V))$ where alpha is inverse Ackermann function)
-* Can toggle optimizations on/off to measure performance difference
+* **Path Compression:** During `find(u)`, points each visited node directly to the root.
+* **Union by Rank:** Connects the root of the smaller tree to the root of the larger tree, keeping tree height bounded by $O(\log V)$ before compression.
+* Combined, find and union run in nearly $O(1)$ amortized time ($O(\alpha(V))$, where $\alpha$ is the inverse Ackermann function).
+* The class also supports running without optimizations to measure the performance penalty of naive tree structures.
 
-#### MST Algorithms (`mst`)
-* **Kruskal:** Sort all edges by weight ($O(E \log E)$), then use DSU to add edges without creating cycles. Stops after $V - 1$ edges. Pretty efficient for sparse graphs.
-* **Prim:** Start from vertex 0, use a priority queue to always pick the cheapest edge to unvisited vertex. Uses binary heap from Java's `PriorityQueue`.
+#### Minimum Spanning Tree (`mst`)
+* **Kruskal's Algorithm:** Sorts all unique edges by weight and adds edges if endpoints are in different DSU sets. It stops early once $V - 1$ edges are added. If fewer edges are added, it detects that the graph is disconnected.
+* **Prim's Algorithm:** Uses Java's `PriorityQueue<Edge>` (binary min-heap). It starts from vertex 0, greedily picks the minimum weight edge to an unvisited vertex, and adds outgoing edges to the queue. If visited count is less than $V$, it flags the graph as disconnected.
 
-#### Connectivity Analysis (`connectivity`)
-* **Topological Sort:** Uses Kahn's algorithm with in-degree counting. If we can't process all vertices, there's a cycle.
-* **Strongly Connected Components:**
-  * *Tarjan:* Single DFS pass with some clever bookkeeping (discovery time, low-link values, stack)
-  * *Kosaraju:* Two DFS passes, second one on transposed graph. Included mostly for comparison.
+#### Connectivity & SCC (`connectivity`)
+* **Topological Sort:** Implements Kahn's algorithm using an in-degree array and a queue. If the number of processed vertices is less than $V$, the remaining vertices form a cycle (`hasCycle() == true`).
+* **Strongly Connected Components:** I chose **Kosaraju's algorithm** for SCC because it is clean and intuitive:
+  1. Run DFS on the original graph, recording vertices on a stack by finish time.
+  2. Transpose the graph (reverse all directed edges).
+  3. Pop vertices from the stack and run DFS on the transposed graph to collect each component.
 
 #### Shortest Paths (`shortestpath`)
-* **Dijkstra:** Standard implementation with priority queue and distance array. Reconstructs paths using parent pointers.
-* **Important:** Throws exception if negative edges found, since Dijkstra doesn't work with those.
+* **Dijkstra's Algorithm:** Uses a binary min-heap (`PriorityQueue`) of `(vertex, distance)` pairs and an array `dist[]` initialized to `Double.POSITIVE_INFINITY`.
+* **Lazy Deletion:** When polling from the queue, `if (curr.distance > dist[u]) continue;` skips older, suboptimal queue entries. This prevents redundant relaxations and preserves $O((V + E) \log V)$ time.
+* **Reconstruction:** Reconstructs the path from source to target using a `parent[]` array. Unreachable vertices have infinite distance and return an empty path list.
+* **Negative Weight Check:** If any edge has $w < 0$, it throws an `IllegalArgumentException`.
 
 ---
 
-## 3. Time Complexity
+## 3. Time and Space Complexity
 
-Here's the theoretical complexity for each algorithm:
+| Algorithm | Assumptions / Data Structures | Time Complexity | Space Complexity |
+| :--- | :--- | :---: | :---: |
+| **DSU (find/union)** | Path compression + union by rank | $O(\alpha(V))$ amortized | $O(V)$ |
+| **Kruskal's MST** | Edge list sorting + DSU | $O(E \log E) = O(E \log V)$ | $O(V + E)$ |
+| **Prim's MST** | Adjacency list + binary min-heap | $O((V + E) \log V)$ | $O(V + E)$ |
+| **Kosaraju's SCC** | Adjacency list + transposed graph + stack | $O(V + E)$ | $O(V + E)$ |
+| **Topological Sort** | In-degree array + queue (Kahn's) | $O(V + E)$ | $O(V)$ |
+| **Dijkstra's Algorithm** | Adjacency list + binary min-heap | $O((V + E) \log V)$ | $O(V + E)$ |
 
-| Algorithm | Time Complexity | Space |
-| :--- | :---: | :---: |
-| **DSU (find/union)** | $O(\alpha(V))$ amortized | $O(V)$ |
-| **Kruskal** | $O(E \log E)$ | $O(V + E)$ |
-| **Prim** | $O((V + E) \log V)$ | $O(V + E)$ |
-| **Tarjan SCC** | $O(V + E)$ | $O(V)$ |
-| **Kosaraju SCC** | $O(V + E)$ | $O(V + E)$ |
-| **Topological Sort** | $O(V + E)$ | $O(V)$ |
-| **Dijkstra** | $O((V + E) \log V)$ | $O(V + E)$ |
+### Notes on Complexity
 
-### Some Details
-
-#### DSU
-With path compression and union by rank, operations are basically constant time. The inverse Ackermann function $\alpha(n)$ is at most 4 for any practical input size. Without optimizations you get $O(V)$ worst case which is terrible.
-
-#### Kruskal
-Sorting takes $O(E \log E)$ which dominates everything else. Since $E \le V^2$, we have $\log E \le 2\log V$, so it's also $O(E \log V)$. The DSU operations are nearly free in comparison.
-
-#### Prim  
-Each vertex extracted once from heap ($V \log V$), each edge examined and potentially inserted ($E \log V$). Total is $O((V + E) \log V)$.
-
-On sparse graphs both MST algorithms are similar, but on dense graphs ($E \approx V^2$) Prim can be better with fancy heaps like Fibonacci heap.
-
-#### Tarjan SCC
-Linear time $O(V + E)$ - visits each vertex once, examines each edge once. Very efficient.
-
-#### Dijkstra
-Similar to Prim actually - $O((V + E) \log V)$ with binary heap. Could be improved to $O(E + V \log V)$ with Fibonacci heap but honestly the constant factors make it not worth it for most cases.
+* **DSU:** With both path compression and union by rank, any sequence of $m$ operations on $n$ elements takes $O(m \cdot \alpha(n))$ time. In practice $\alpha(n) \le 4$. Without optimizations, trees can degrade into linear chains where each operation takes $O(V)$ worst case.
+* **Kruskal:** Sorting $|E|$ edges takes $O(E \log E)$. Because $E \le V^2$, $\log E \le 2 \log V$, so sorting takes $O(E \log V)$. DSU operations take $O(E \cdot \alpha(V))$, which is dominated by sorting.
+* **Prim:** Extracting $V$ vertices from the priority queue takes $O(V \log V)$, and relaxing $E$ edges takes $O(E \log V)$, giving $O((V + E) \log V)$.
+* **Kosaraju:** Both DFS passes visit each vertex once and each edge once, so the total time is strictly linear $O(V + E)$.
+* **Dijkstra:** With a binary heap, vertex extractions take $O(V \log V)$ and edge insertions take $O(E \log V)$, totaling $O((V + E) \log V)$.
 
 ### Why Dijkstra Fails with Negative Weights
 
-Dijkstra's greedy approach assumes once we finalize a vertex's distance, we found the optimal path to it. With negative edges this breaks because a longer path discovered later might actually be shorter after including negative edge.
+Dijkstra's algorithm relies on a greedy invariant: once a vertex is extracted from the priority queue, its shortest distance is finalized and will not change.
 
-Also negative cycles make shortest paths undefined (you can keep going around the cycle to get arbitrarily small distances). Need Bellman-Ford for that.
+With negative edge weights:
+1. A longer path with a negative edge discovered later could result in a lower total distance to an already-finalized vertex. Because Dijkstra never re-evaluates visited vertices, it fails to find the true shortest path.
+2. If the graph contains a negative cycle, shortest paths become undefined ($-\infty$) because traversing the cycle repeatedly lowers the path weight indefinitely. For negative weights, algorithms like Bellman-Ford are required.
 
 ---
 
 ## 4. Experimental Setup
 
-All tests ran on OpenJDK 26 (64-Bit).
+The benchmarks were run on OpenJDK 26 (64-Bit VM).
 
-### Test Graphs
+### Configurations
 
-Three graph sizes as specified:
+Three graph sizes from the assignment specification were tested:
 
-| Config | Vertices | Edges | Avg Degree | Density |
+| Size | Vertices ($V$) | Edges ($E$) | Avg Degree ($2E/V$) | Density ($2E / (V(V-1))$) |
 | :--- | :---: | :---: | :---: | :---: |
 | **Small** | 10 | 30 | 6.0 | 0.667 |
 | **Medium** | 100 | 500 | 10.0 | 0.101 |
@@ -161,228 +146,177 @@ Three graph sizes as specified:
 
 ### Methodology
 
-1. Fixed random seed (42) for reproducibility
-2. MST graphs guaranteed connected by building spanning tree first
-3. 5 trials per configuration, results are averages
-4. 50 warmup runs before measurement for JIT compilation
-5. Used `System.nanoTime()` for timing
-6. Counted internal operations (comparisons, queue ops, etc)
+1. **Fixed Seed:** Seed `42L` (+ offset per repeat) ensures all tests are reproducible.
+2. **5 Repeats:** Every configuration is repeated 5 times; reported values are arithmetic averages.
+3. **Warmup:** 50 warmup iterations run before timing to let the JVM JIT compiler stabilize.
+4. **Timing:** Measured with `System.nanoTime()` around algorithm calls.
+5. **Operation Counters:** Internal counters track edge examinations, key comparisons, and DSU/heap operations.
 
 ---
 
-## 5. Results
+## 5. Experimental Results
 
-### MST: Kruskal vs Prim
+### Minimum Spanning Tree: Kruskal vs. Prim
 
-Times in milliseconds, operation counts, and MST weights:
-
-| Size | V | E | Algorithm | Time (ms) | Edge Exams | Comparisons | PQ/DSU Ops | Total Ops | MST Weight |
+| Size | $V$ | $E$ | Algorithm | Time (ms) | Edge Exams | Comparisons | Aux / PQ Ops | Total Ops | MST Weight |
 | :--- | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Small** | 10 | 30 | Kruskal | **0.0258** | 13 | 111 | 98 | 223 | **227.83** |
-| | 10 | 30 | Prim | 0.0332 | 60 | 140 | 43 | 244 | **227.83** |
-| **Medium** | 100 | 500 | Kruskal | **0.2151** | 290 | 3,836 | 2,071 | 6,198 | **1,161.90** |
-| | 100 | 500 | Prim | 0.2826 | 1,000 | 5,477 | 790 | 7,268 | **1,161.90** |
-| **Large** | 1,000 | 5,000 | Kruskal | **2.9957** | 3,652 | 55,158 | 25,574 | 84,385 | **12,260.45** |
-| | 1,000 | 5,000 | Prim | 3.6373 | 10,000 | 90,342 | 8,652 | 108,995 | **12,260.45** |
+| **Small** | 10 | 30 | Kruskal | **0.0133** | 13 | 111 | 98 | 223 | **227.83** |
+| | 10 | 30 | Prim | 0.0229 | 60 | 140 | 43 | 244 | **227.83** |
+| **Medium** | 100 | 500 | Kruskal | **0.1601** | 290 | 3,836 | 2,071 | 6,198 | **1,161.90** |
+| | 100 | 500 | Prim | 0.2583 | 1,000 | 5,477 | 790 | 7,268 | **1,161.90** |
+| **Large** | 1,000 | 5,000 | Kruskal | **2.0004** | 3,652 | 55,158 | 25,574 | 84,385 | **12,260.45** |
+| | 1,000 | 5,000 | Prim | 2.2687 | 10,000 | 90,342 | 8,652 | 108,995 | **12,260.45** |
 
-Both algorithms produce identical MST weights which is good.
+*Check:* Both algorithms return the exact same MST weight across all graph sizes.
 
 ---
 
-### DSU: Optimized vs Naive
+### DSU: Optimized vs. Naive
 
-| Size | V | E | Mode | Time (ms) | DSU Ops | Notes |
+| Size | $V$ | $E$ | Mode | Time (ms) | DSU Ops | Ratio |
 | :--- | :---: | :---: | :--- | :---: | :---: | :---: |
-| **Small** | 10 | 30 | Optimized | 0.0612 | 98 | - |
-| | 10 | 30 | Naive | 0.0519 | 90 | Similar on small graphs |
-| **Medium** | 100 | 500 | Optimized | 0.1998 | 2,071 | ~3x fewer ops |
-| | 100 | 500 | Naive | 0.1870 | 6,111 | - |
-| **Large** | 1,000 | 5,000 | Optimized | **1.5423** | **25,574** | **27x fewer ops!** |
-| | 1,000 | 5,000 | Naive | 2.3376 | 700,483 | Gets really bad |
-
-The difference is huge on large graphs - path compression + union by rank really matters.
+| **Small** | 10 | 30 | Optimized (PathComp + Rank) | 0.0157 | 98 | 1.0x |
+| | 10 | 30 | Naive (No PathComp, No Rank) | 0.0266 | 90 | - |
+| **Medium** | 100 | 500 | Optimized (PathComp + Rank) | 0.1567 | 2,071 | 2.95x fewer ops |
+| | 100 | 500 | Naive (No PathComp, No Rank) | 0.1349 | 6,111 | - |
+| **Large** | 1,000 | 5,000 | Optimized (PathComp + Rank) | **1.4527** | **25,574** | **27.4x fewer ops (1.62x faster)** |
+| | 1,000 | 5,000 | Naive (No PathComp, No Rank) | 2.3574 | 700,483 | Degenerate chains |
 
 ---
 
-### Topological Sort: DAG vs Cyclic
+### Topological Ordering: DAG vs. Cyclic
 
-| Size | V | E | Type | Result | Time (ms) | Visits | Edge Exams | Total Ops |
+| Size | $V$ | $E$ | Graph Type | Status | Time (ms) | Vertex Visits | Edge Exams | Total Ops |
 | :--- | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Small** | 10 | 30 | DAG | Valid | 0.0160 | 10 | 60 | 70 |
-| | 10 | 30 | Cyclic | Cycle found | 0.0063 | 0 | 31 | 31 |
-| **Medium** | 100 | 500 | DAG | Valid | 0.1774 | 100 | 1,000 | 1,100 |
-| | 100 | 500 | Cyclic | Cycle found | 0.0734 | 0 | 505 | 505 |
-| **Large** | 1,000 | 5,000 | DAG | Valid | 1.7799 | 1,000 | 10,000 | 11,000 |
-| | 1,000 | 5,000 | Cyclic | Cycle found | 0.2009 | 6 | 5,028 | 5,034 |
-
-Cycle detection is fast since it stops early.
+| **Small** | 10 | 30 | DAG | Valid | 0.0098 | 10 | 60 | 70 |
+| | 10 | 30 | Cyclic | Cycle Detected | 0.0038 | 0 | 31 | 31 |
+| **Medium** | 100 | 500 | DAG | Valid | 0.1211 | 100 | 1,000 | 1,100 |
+| | 100 | 500 | Cyclic | Cycle Detected | 0.0531 | 0 | 505 | 505 |
+| **Large** | 1,000 | 5,000 | DAG | Valid | 0.9843 | 1,000 | 10,000 | 11,000 |
+| | 1,000 | 5,000 | Cyclic | Cycle Detected | 0.2703 | 6 | 5,028 | 5,034 |
 
 ---
 
-### Strongly Connected Components (Tarjan)
+### Strongly Connected Components (Kosaraju)
 
-| Size | V | E | Time (ms) | DFS Visits | Edges | Total Ops | Avg SCCs |
+| Size | $V$ | $E$ | Time (ms) | DFS Visits | Edge Exams | Total Ops | Avg SCCs |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Small** | 10 | 30 | 0.0138 | 10 | 30 | 40 | 1.6 |
-| **Medium** | 100 | 500 | 0.0273 | 100 | 500 | 600 | 2.2 |
-| **Large** | 1,000 | 5,000 | 0.4194 | 1,000 | 5,000 | 6,000 | 13.6 |
+| **Small** | 10 | 30 | 0.0197 | 20 | 60 | 80 | 1.6 |
+| **Medium** | 100 | 500 | 0.1127 | 200 | 1,000 | 1,200 | 2.2 |
+| **Large** | 1,000 | 5,000 | 1.5590 | 2,000 | 10,000 | 12,000 | 13.6 |
 
-Linear scaling as expected.
+Notice that the total operations equal $2(V + E)$ across both passes, matching the theoretical linear bound.
 
 ---
 
-### Dijkstra Shortest Paths
+### Dijkstra's Shortest Paths
 
-| Size | V | E | Time (ms) | Relaxations | PQ Ops | Comparisons | Total Ops |
+| Size | $V$ | $E$ | Time (ms) | Edge Relaxations | PQ Operations | Comparisons | Total Ops |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Small** | 10 | 30 | 0.0154 | 60 | 27 | 53 | 140 |
-| **Medium** | 100 | 500 | 0.1805 | 1,000 | 392 | 2,292 | 3,684 |
-| **Large** | 1,000 | 5,000 | 2.3140 | 10,000 | 3,926 | 36,137 | 50,063 |
+| **Small** | 10 | 30 | 0.0167 | 60 | 27 | 53 | 140 |
+| **Medium** | 100 | 500 | 0.1626 | 1,000 | 392 | 2,292 | 3,684 |
+| **Large** | 1,000 | 5,000 | 1.9583 | 10,000 | 3,926 | 36,137 | 50,063 |
 
 ---
 
 ### Plots
 
-#### Execution Time vs Vertices
+#### Execution Time vs. Vertices
 ![Execution Time vs Vertices](results/plots/execution_time_vs_vertices.png)
 
-#### Execution Time vs Edges  
+#### Execution Time vs. Edges
 ![Execution Time vs Edges](results/plots/execution_time_vs_edges.png)
 
-#### Kruskal vs Prim
+#### Kruskal vs. Prim Comparison
 ![Kruskal vs Prim](results/plots/kruskal_vs_prim_comparison.png)
 
-#### DSU Performance
+#### DSU Optimization Impact
 ![DSU Performance](results/plots/dsu_performance_comparison.png)
 
-#### Dijkstra Operations
+#### Dijkstra Operation Breakdown
 ![Dijkstra Operations](results/plots/dijkstra_operations.png)
 
 ---
 
 ## 6. Discussion
 
-### Kruskal vs Prim
-Kruskal was consistently faster in our tests. On the large graph it was about 20% faster (2.99ms vs 3.64ms). 
+### Kruskal vs. Prim
+In our tests on sparse graphs ($E / V = 3$ to $5$), Kruskal's algorithm was faster than Prim's:
+* On the Large graph ($V = 1000, E = 5000$), Kruskal finished in 2.00 ms (84,385 ops) compared to Prim's 2.27 ms (108,995 ops).
+* **Early termination:** Kruskal stops as soon as it selects $V - 1 = 999$ edges. In our tests, Kruskal only had to examine 3,652 out of 5,000 edges (around 73%). Prim had to process all 10,000 incident edge endpoints across all visited vertices.
+* **Queue overhead:** Java's standard `PriorityQueue` has noticeable overhead from object allocations and repeated heap rebalancing during `add` and `poll`. In contrast, sorting the edge list once in Kruskal is fast and cache-friendly.
+* However, on very dense graphs ($E \approx V^2$), Kruskal would spend significant time sorting $O(V^2)$ edges, where Prim using an indexed heap would be faster.
 
-The main advantage for Kruskal is early stopping - it only needs to check 3,652 edges out of 5,000 to build the MST. Prim has to examine all edges incident to visited vertices which ends up being more work.
+### DSU Optimizations
+The benchmark clearly shows the impact of path compression and union by rank:
+* On small graphs ($V = 10$), naive DSU works fine because trees don't get deep enough for chain lookups to matter.
+* On the Large graph ($V = 1000$), the naive version needed **700,483 operations**, while the optimized version needed only **25,574 operations** (a 27.4x reduction).
+* Without path compression and rank balance, trees degenerate into long chains where each `find` call walks through many parent pointers. Path compression flattens the tree so subsequent lookups are nearly direct.
 
-Operation counts support this: Kruskal did 84k operations vs Prim's 109k operations. The priority queue operations in Prim add up.
+### Strongly Connected Components
+Kosaraju's algorithm showed strictly linear scaling:
+* Total operations were exactly $2 \times (V + E)$: 80 for Small, 1,200 for Medium, and 12,000 for Large.
+* In smart cities, this is directly applicable to traffic flow. If an urban network breaks into multiple SCCs, it means some districts cannot reach others via one-way streets, highlighting where two-way roads or return routes are missing.
 
-For sparse graphs like road networks (where E is roughly 5-10 times V), Kruskal with DSU is probably the better choice. For really dense graphs Prim might be better, especially with a fancy heap implementation.
+### Topological Ordering
+* On valid DAGs, Kahn's algorithm processes all vertices and edges in linear time (11,000 operations for $V=1000, E=5000$).
+* On cyclic networks, the queue empties early when all remaining vertices still have incoming edges. On the Large cyclic graph, it aborted after examining edges without processing vertices in 0.27 ms. This fast cycle detection is useful for validating dependency chains before rolling out infrastructure updates.
 
-### DSU Optimizations Matter A Lot
-Without path compression and union by rank, the DSU becomes really slow. On our large graph the naive version needed **700,483 operations** compared to just **25,574** for the optimized version. That's over 27 times more!
-
-The time difference was smaller (2.34ms vs 1.54ms) but still noticable. Path compression flattens the trees as you go, and union by rank keeps them balanced. Without these the trees turn into long chains and find operations become slow.
-
-### SCC Scales Linearly
-Tarjan's algorithm is impressively consistent. Operations scale exactly as V + E:
-- Small: 10 + 30 = 40 ops
-- Medium: 100 + 500 = 600 ops  
-- Large: 1000 + 5000 = 6000 ops
-
-For smart city applications, SCCs tell you which districts are mutually reachable. If your city breaks into multiple SCCs, some areas are isolated or have one-way access issues.
-
-### Topological Sort for Dependency Checking
-Kahn's algorithm works great for finding cycles. On acyclic graphs it processes all vertices in O(V+E) time. When there's a cycle, it stops early - on our large cyclic graph it only processed 6 vertices before detecting the problem.
-
-This is useful for infrastructure dependencies - you can quickly verify that your deployment plan doesn't have circular dependencies.
-
-### Dijkstra Performance
-Dijkstra scaled reasonably well. Most of the work is in heap operations - 36,137 comparisons on the large graph vs only 10,000 edge relaxations. The heap bookkeeping dominates.
-
-For negative weights you need Bellman-Ford but that's slower (O(VE) instead of O((V+E)log V)).
+### Dijkstra Scalability
+* The dominant cost in Dijkstra is heap comparisons (36,137 comparisons on the Large graph vs 10,000 relaxations).
+* The lazy deletion check `if (curr.distance > dist[u]) continue;` is critical. Without it, outdated queue entries would be processed, triggering redundant relaxation loops and degrading the runtime.
 
 ---
 
 ## 7. Testing
 
-The test suite (`tests/TestSuite.java`) has 142 test assertions and they all pass.
+The test suite in `tests/TestSuite.java` contains 140 assertions that verify correctness across edge cases:
 
-### What Was Tested
-
-1. **Single vertex graph (V=1, E=0):**
-   - MST works correctly
-   - Topological sort returns [0]
-   - Tarjan finds 1 SCC
-   - Dijkstra distance to self is 0
-
-2. **Small graph with known answer:**
-   - Verified MST cost matches hand calculation (6.0)
-   - Shortest paths match expected values
-   - Path reconstruction gives correct sequence [0,1,2,3]
-
-3. **Disconnected graphs:**
-   - Kruskal and Prim detect disconnectedness
-   - Dijkstra marks unreachable vertices with infinity distance
-
-4. **Graphs with cycles:**
-   - Topological sort correctly detects cycles
-   - Tarjan groups cyclic vertices into single SCC
-
-5. **Multiple valid MSTs:**
-   - Test with uniform edge weights where multiple MSTs exist
-   - Both algorithms find valid spanning tree with correct total weight
-
-6. **Unreachable vertices:**
-   - Dijkstra handles them correctly with infinity distances
-
-7. **Negative edge weights:**
-   - Dijkstra throws `IllegalArgumentException` as expected
-
-8. **Random graph testing:**
-   - Tested 16 different random graphs (different sizes and seeds)
-   - Kruskal and Prim always produce same MST weight
-
-9. **SCC invariants:**
-   - Every vertex in exactly one component
-   - Sum of component sizes equals V
-   - Tarjan and Kosaraju give same results
-
-Most edge cases are covered. The algorithms seem robust.
+1. **Single vertex graph ($V=1, E=0$):** MST weight is 0.0, graph is connected, topological sort returns `[0]`, Kosaraju finds 1 SCC, and Dijkstra distance to self is 0.0.
+2. **Small graph with hand-calculated solution:** Verified that MST weight matches 6.0 and shortest path $0 \to 3$ is `[0, 1, 2, 3]` with distance 6.0.
+3. **Disconnected graph:** Verified that both Kruskal and Prim detect disconnectedness (`isConnected() == false`), and Dijkstra marks unreachable nodes with infinite distance.
+4. **Graphs with cycles:** Topological sort detects cycles and returns empty order with `hasCycle() == true`. Kosaraju groups cyclic nodes into one SCC.
+5. **Multiple valid MSTs and duplicate weights:** Square graph with identical edge weights (5.0). Both Kruskal and Prim return 15.0 and select exactly 3 edges.
+6. **Unreachable vertices:** Directed graph with isolated target. Dijkstra returns infinite distance and empty path.
+7. **Negative weights:** Dijkstra throws `IllegalArgumentException`.
+8. **Random graph equivalence:** 16 random connected graphs tested across sizes ($V=10, 25, 50, 100$). Kruskal and Prim always return identical MST weights.
+9. **SCC partition check:** Verified that every vertex belongs to exactly one SCC and the sum of component sizes equals $V$.
+10. **DSU operations:** Verified find, union, set counts, and component sizes.
 
 ---
 
 ## 8. Conclusion
 
-This project implements graph algorithms for smart city infrastructure planning. The main findings:
-
-1. **MST (Kruskal vs Prim):** Both work fine and give same results. Kruskal seems a bit faster on sparse graphs due to early termination. For our test cases Kruskal was consistently 15-20% faster.
-
-2. **DSU Optimizations:** Path compression and union by rank are essential. Without them performance degrades badly - 27x more operations on large graphs. The inverse Ackermann function keeps everything nearly constant time.
-
-3. **SCC and Topological Sort:** Both scale linearly O(V+E) as expected. Tarjan's algorithm is elegant and efficient. Useful for analyzing network connectivity and finding isolated regions.
-
-4. **Dijkstra:** Works well for non-negative weights. Most overhead is in heap operations. For negative weights need different algorithm (Bellman-Ford).
-
-Overall the implementations are solid and the benchmarks show expected theoretical behavior. DSU optimizations make the biggest practical difference.
+* **MST:** Kruskal and Prim produce identical trees. For typical sparse city infrastructure networks, Kruskal is faster due to early stopping and lower heap overhead.
+* **DSU:** Path compression and union by rank prevent tree degeneracy, reducing operations by over 96% on larger graphs.
+* **Connectivity:** Kosaraju's algorithm and Kahn's topological sort run in linear time $O(V + E)$ and cleanly handle cycle detection and component partitioning.
+* **Dijkstra:** Efficient for non-negative road networks with path reconstruction and lazy deletion.
 
 ---
 
-## 9. How to Run
+## 9. How to Compile and Run
 
 ### Requirements
-* Java JDK 17 or newer (tested with OpenJDK 26)
-* Python 3.8+ with matplotlib for plots
+* OpenJDK 17 or newer (tested on OpenJDK 26)
+* Python 3 with `matplotlib` for generating plots
 
 ### Compile
-```bash
-javac -d out -sourcepath "src;tests" src/**/*.java tests/**/*.java
+```powershell
+& "C:\Users\mazhi\.jdks\openjdk-26.0.2.1\bin\javac.exe" -d out -sourcepath "src;tests" (Get-ChildItem -Recurse src/*.java, tests/*.java).FullName
 ```
 
-### Run Everything (Tests + Benchmarks)
-```bash
-java -cp out Main
+### Run Benchmarks
+```powershell
+& "C:\Users\mazhi\.jdks\openjdk-26.0.2.1\bin\java.exe" -cp out Main
 ```
 
-### Just Run Tests
-```bash
-java -cp out TestSuite
+### Run Tests
+```powershell
+& "C:\Users\mazhi\.jdks\openjdk-26.0.2.1\bin\java.exe" -cp out tests.TestSuite
 ```
 
-### Generate Plots
-```bash
+### Regenerate Plots
+```powershell
 python scripts/generate_plots.py
 ```
-Plots get saved to `results/plots/`.
+Plots are saved in `results/plots/`.
